@@ -5,11 +5,11 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from bookmarks.models import GlobalSettings
-from bookmarks.tests.helpers import BookmarkFactoryMixin
+from bookmarks.tests.helpers import BookmarkFactoryMixin, HtmlTestMixin
 
 
 class BookmarkArchivedViewPerformanceTestCase(
-    TransactionTestCase, BookmarkFactoryMixin
+    TransactionTestCase, BookmarkFactoryMixin, HtmlTestMixin
 ):
 
     def setUp(self) -> None:
@@ -31,10 +31,11 @@ class BookmarkArchivedViewPerformanceTestCase(
         # capture number of queries
         context = CaptureQueriesContext(self.get_connection())
         with context:
-            response = self.client.get(reverse("bookmarks:archived"))
-            self.assertContains(
-                response, "<li ld-bookmark-item>", num_initial_bookmarks
-            )
+            response = self.client.get(reverse("linkding:bookmarks.archived"))
+            html = response.content.decode("utf-8")
+            soup = self.make_soup(html)
+            list_items = soup.select("li[ld-bookmark-item]")
+            self.assertEqual(len(list_items), num_initial_bookmarks)
 
         number_of_queries = context.final_queries
 
@@ -45,9 +46,10 @@ class BookmarkArchivedViewPerformanceTestCase(
 
         # assert num queries doesn't increase
         with self.assertNumQueries(number_of_queries):
-            response = self.client.get(reverse("bookmarks:archived"))
-            self.assertContains(
-                response,
-                "<li ld-bookmark-item>",
-                num_initial_bookmarks + num_additional_bookmarks,
+            response = self.client.get(reverse("linkding:bookmarks.archived"))
+            html = response.content.decode("utf-8")
+            soup = self.make_soup(html)
+            list_items = soup.select("li[ld-bookmark-item]")
+            self.assertEqual(
+                len(list_items), num_initial_bookmarks + num_additional_bookmarks
             )

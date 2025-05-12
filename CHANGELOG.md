@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.38.1 (22/02/2025)
+
+### What's Changed
+* Remove preview image when bookmark is deleted by @sissbruecker in https://github.com/sissbruecker/linkding/pull/989
+* Try limit uwsgi memory usage by configuring file descriptor limit by @sissbruecker in https://github.com/sissbruecker/linkding/pull/990
+* Add note about OIDC and LD_SUPERUSER_NAME combination by @tebriel in https://github.com/sissbruecker/linkding/pull/992
+* Return web archive fallback URL from REST API by @sissbruecker in https://github.com/sissbruecker/linkding/pull/993
+* Fix auth proxy logout by @sissbruecker in https://github.com/sissbruecker/linkding/pull/994
+
+### New Contributors
+* @tebriel made their first contribution in https://github.com/sissbruecker/linkding/pull/992
+
+**Full Changelog**: https://github.com/sissbruecker/linkding/compare/v1.38.0...v1.38.1
+
+---
+
+## v1.38.0 (09/02/2025)
+
+### What's Changed
+* Fix nav menu closing on mousedown in Safari by @sissbruecker in https://github.com/sissbruecker/linkding/pull/965
+* Allow customizing username when creating user through OIDC by @kyuuk in https://github.com/sissbruecker/linkding/pull/971
+* Improve accessibility of modal dialogs by @sissbruecker in https://github.com/sissbruecker/linkding/pull/974
+* Add option to collapse side panel by @sissbruecker in https://github.com/sissbruecker/linkding/pull/975
+* Convert tag modal into drawer by @sissbruecker in https://github.com/sissbruecker/linkding/pull/977
+* Add RSS link to shared bookmarks page by @sissbruecker in https://github.com/sissbruecker/linkding/pull/984
+* Add Additional iOS Shortcut to community section by @joshdick in https://github.com/sissbruecker/linkding/pull/968
+
+### New Contributors
+* @kyuuk made their first contribution in https://github.com/sissbruecker/linkding/pull/971
+
+**Full Changelog**: https://github.com/sissbruecker/linkding/compare/v1.37.0...v1.38.0
+
+---
+
 ## v1.37.0 (26/01/2025)
 
 ### What's Changed

@@ -43,7 +43,7 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         self.assertInHTML(
             f"""
         <a href="{url}"
-           title="Show snapshot on the Internet Archive Wayback Machine" target="{link_target}" rel="noopener">
+           title="View snapshot on the Internet Archive Wayback Machine" target="{link_target}" rel="noopener">
             {label_content}
         </a>
         <span>|</span>
@@ -65,18 +65,18 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         count=1,
     ):
         if base_url is None:
-            base_url = reverse("bookmarks:index")
+            base_url = reverse("linkding:bookmarks.index")
         details_url = base_url + f"?details={bookmark.id}"
         self.assertInHTML(
             f"""
-                <a href="{details_url}" data-turbo-action="replace" data-turbo-frame="details-modal">View</a>
+                <a href="{details_url}" class="view-action" data-turbo-action="replace" data-turbo-frame="details-modal">View</a>
             """,
             html,
             count=count,
         )
 
     def assertEditLinkCount(self, html: str, bookmark: Bookmark, count=1):
-        edit_url = reverse("bookmarks:edit", args=[bookmark.id])
+        edit_url = reverse("linkding:bookmarks.edit", args=[bookmark.id])
         self.assertInHTML(
             f"""
             <a href="{edit_url}?return_url=/bookmarks">Edit</a>
@@ -559,11 +559,39 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
             html, "1 week ago", bookmark.web_archive_snapshot_url, link_target="_self"
         )
 
+    def test_should_render_latest_snapshot_link_if_one_exists(self):
+        bookmark = self.setup_date_format_test(
+            UserProfile.BOOKMARK_DATE_DISPLAY_ABSOLUTE
+        )
+        bookmark.latest_snapshot = self.setup_asset(bookmark)
+        bookmark.save()
+
+        html = self.render_template()
+        formatted_date = formats.date_format(bookmark.date_added, "SHORT_DATE_FORMAT")
+        snapshot_url = reverse(
+            "linkding:assets.view", args=[bookmark.latest_snapshot.id]
+        )
+
+        # Check that the snapshot link is rendered with the correct URL and title
+        self.assertInHTML(
+            f"""
+            <a href="{snapshot_url}"
+               title="View latest snapshot" target="_blank" rel="noopener">
+                {formatted_date}
+            </a>
+            <span>|</span>
+            """,
+            html,
+        )
+
     def test_should_reflect_unread_state_as_css_class(self):
         self.setup_bookmark(unread=True)
         html = self.render_template()
+        soup = self.make_soup(html)
 
-        self.assertIn('<li ld-bookmark-item class="unread">', html)
+        list_item = soup.select_one("li[ld-bookmark-item]")
+        self.assertIsNotNone(list_item)
+        self.assertListEqual(["unread"], list_item["class"])
 
     def test_should_reflect_shared_state_as_css_class(self):
         profile = self.get_or_create_test_user().profile
@@ -572,8 +600,11 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
 
         self.setup_bookmark(shared=True)
         html = self.render_template()
+        soup = self.make_soup(html)
 
-        self.assertIn('<li ld-bookmark-item class="shared">', html)
+        list_item = soup.select_one("li[ld-bookmark-item]")
+        self.assertIsNotNone(list_item)
+        self.assertListEqual(["shared"], list_item["class"])
 
     def test_should_reflect_both_unread_and_shared_state_as_css_class(self):
         profile = self.get_or_create_test_user().profile
@@ -582,8 +613,11 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
 
         self.setup_bookmark(unread=True, shared=True)
         html = self.render_template()
+        soup = self.make_soup(html)
 
-        self.assertIn('<li ld-bookmark-item class="unread shared">', html)
+        list_item = soup.select_one("li[ld-bookmark-item]")
+        self.assertIsNotNone(list_item)
+        self.assertListEqual(["unread", "shared"], list_item["class"])
 
     def test_show_bookmark_actions_for_owned_bookmarks(self):
         bookmark = self.setup_bookmark()
@@ -651,7 +685,9 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         bookmark = self.setup_bookmark(user=other_user, shared=True)
         html = self.render_template(context_type=contexts.SharedBookmarkListContext)
 
-        self.assertViewLink(html, bookmark, base_url=reverse("bookmarks:shared"))
+        self.assertViewLink(
+            html, bookmark, base_url=reverse("linkding:bookmarks.shared")
+        )
         self.assertNoBookmarkActions(html, bookmark)
         self.assertShareInfo(html, bookmark)
 
@@ -943,7 +979,9 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         self.assertWebArchiveLink(
             html, "1 week ago", bookmark.web_archive_snapshot_url, link_target="_blank"
         )
-        self.assertViewLink(html, bookmark, base_url=reverse("bookmarks:shared"))
+        self.assertViewLink(
+            html, bookmark, base_url=reverse("linkding:bookmarks.shared")
+        )
         self.assertNoBookmarkActions(html, bookmark)
         self.assertShareInfo(html, bookmark)
         self.assertMarkAsReadButton(html, bookmark, count=0)

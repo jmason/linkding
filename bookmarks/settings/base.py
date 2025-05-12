@@ -58,7 +58,7 @@ MIDDLEWARE = [
     "django.middleware.locale.LocaleMiddleware",
 ]
 
-ROOT_URLCONF = "siteroot.urls"
+ROOT_URLCONF = "bookmarks.urls"
 
 TEMPLATES = [
     {
@@ -80,7 +80,7 @@ TEMPLATES = [
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
-WSGI_APPLICATION = "siteroot.wsgi.application"
+WSGI_APPLICATION = "bookmarks.wsgi.application"
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -131,7 +131,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 # REST framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "bookmarks.api.auth.LinkdingTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
@@ -146,6 +146,7 @@ ALLOW_REGISTRATION = False
 LD_DISABLE_URL_VALIDATION = os.getenv("LD_DISABLE_URL_VALIDATION", False) in (
     True,
     "True",
+    "true",
     "1",
 )
 
@@ -153,6 +154,7 @@ LD_DISABLE_URL_VALIDATION = os.getenv("LD_DISABLE_URL_VALIDATION", False) in (
 LD_DISABLE_BACKGROUND_TASKS = os.getenv("LD_DISABLE_BACKGROUND_TASKS", False) in (
     True,
     "True",
+    "true",
     "1",
 )
 
@@ -179,7 +181,7 @@ HUEY = {
 
 
 # Enable OICD support if configured
-LD_ENABLE_OIDC = os.getenv("LD_ENABLE_OIDC", False) in (True, "True", "1")
+LD_ENABLE_OIDC = os.getenv("LD_ENABLE_OIDC", False) in (True, "True", "true", "1")
 
 AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
 
@@ -194,11 +196,18 @@ if LD_ENABLE_OIDC:
     OIDC_RP_CLIENT_ID = os.getenv("OIDC_RP_CLIENT_ID")
     OIDC_RP_CLIENT_SECRET = os.getenv("OIDC_RP_CLIENT_SECRET")
     OIDC_RP_SIGN_ALGO = os.getenv("OIDC_RP_SIGN_ALGO", "RS256")
-    OIDC_USE_PKCE = os.getenv("OIDC_USE_PKCE", True) in (True, "True", "1")
-    OIDC_VERIFY_SSL = os.getenv("OIDC_VERIFY_SSL", True) in (True, "True", "1")
+    OIDC_RP_SCOPES = os.getenv("OIDC_RP_SCOPES", "openid email profile")
+    OIDC_USE_PKCE = os.getenv("OIDC_USE_PKCE", True) in (True, "True", "true", "1")
+    OIDC_VERIFY_SSL = os.getenv("OIDC_VERIFY_SSL", True) in (True, "True", "true", "1")
+    OIDC_USERNAME_CLAIM = os.getenv("OIDC_USERNAME_CLAIM", "email")
 
 # Enable authentication proxy support if configured
-LD_ENABLE_AUTH_PROXY = os.getenv("LD_ENABLE_AUTH_PROXY", False) in (True, "True", "1")
+LD_ENABLE_AUTH_PROXY = os.getenv("LD_ENABLE_AUTH_PROXY", False) in (
+    True,
+    "True",
+    "true",
+    "1",
+)
 LD_AUTH_PROXY_USERNAME_HEADER = os.getenv(
     "LD_AUTH_PROXY_USERNAME_HEADER", "REMOTE_USER"
 )
@@ -265,6 +274,7 @@ LD_FAVICON_FOLDER = os.path.join(BASE_DIR, "data", "favicons")
 LD_ENABLE_REFRESH_FAVICONS = os.getenv("LD_ENABLE_REFRESH_FAVICONS", True) in (
     True,
     "True",
+    "true",
     "1",
 )
 
@@ -286,6 +296,13 @@ LD_ASSET_FOLDER = os.path.join(BASE_DIR, "data", "assets")
 LD_ENABLE_SNAPSHOTS = os.getenv("LD_ENABLE_SNAPSHOTS", False) in (
     True,
     "True",
+    "true",
+    "1",
+)
+LD_DISABLE_ASSET_UPLOAD = os.getenv("LD_DISABLE_ASSET_UPLOAD", False) in (
+    True,
+    "True",
+    "true",
     "1",
 )
 LD_SINGLEFILE_PATH = os.getenv("LD_SINGLEFILE_PATH", "single-file")

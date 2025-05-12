@@ -1,22 +1,20 @@
 import functools
 import logging
-import os
 from typing import List
 
 import waybackpy
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 from django.db.models import Q
-from django.utils import timezone, formats
+from django.utils import timezone
 from huey import crontab
 from huey.contrib.djhuey import HUEY as huey
 from huey.exceptions import TaskLockedException
 from waybackpy.exceptions import WaybackError, TooManyRequestsError
 
 from bookmarks.models import Bookmark, BookmarkAsset, UserProfile
-from bookmarks.services import favicon_loader, singlefile, preview_image_loader
-from bookmarks.services.website_loader import DEFAULT_USER_AGENT
+from bookmarks.services import assets, favicon_loader, preview_image_loader
+from bookmarks.services.website_loader import DEFAULT_USER_AGENT, load_website_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +157,7 @@ def schedule_bookmarks_without_favicons(user: User):
 
 @task()
 def _schedule_bookmarks_without_favicons_task(user_id: int):
-    user = get_user_model().objects.get(id=user_id)
+    user = User.objects.get(id=user_id)
     bookmarks = Bookmark.objects.filter(favicon_file__exact="", owner=user)
 
     # TODO: Implement bulk task creation
@@ -175,7 +173,7 @@ def schedule_refresh_favicons(user: User):
 
 @task()
 def _schedule_refresh_favicons_task(user_id: int):
-    user = get_user_model().objects.get(id=user_id)
+    user = User.objects.get(id=user_id)
     bookmarks = Bookmark.objects.filter(owner=user)
 
     # TODO: Implement bulk task creation
@@ -214,7 +212,7 @@ def schedule_bookmarks_without_previews(user: User):
 
 @task()
 def _schedule_bookmarks_without_previews_task(user_id: int):
-    user = get_user_model().objects.get(id=user_id)
+    user = User.objects.get(id=user_id)
     bookmarks = Bookmark.objects.filter(
         Q(preview_image_file__exact=""),
         owner=user,
@@ -228,6 +226,31 @@ def _schedule_bookmarks_without_previews_task(user_id: int):
             logging.exception(exc)
 
 
+def refresh_metadata(bookmark: Bookmark):
+    if not settings.LD_DISABLE_BACKGROUND_TASKS:
+        _refresh_metadata_task(bookmark.id)
+
+
+@task()
+def _refresh_metadata_task(bookmark_id: int):
+    try:
+        bookmark = Bookmark.objects.get(id=bookmark_id)
+    except Bookmark.DoesNotExist:
+        return
+
+    logger.info(f"Refresh metadata for bookmark. url={bookmark.url}")
+
+    metadata = load_website_metadata(bookmark.url)
+    if metadata.title:
+        bookmark.title = metadata.title
+    if metadata.description:
+        bookmark.description = metadata.description
+    bookmark.date_modified = timezone.now()
+
+    bookmark.save()
+    logger.info(f"Successfully refreshed metadata for bookmark. url={bookmark.url}")
+
+
 def is_html_snapshot_feature_active() -> bool:
     return settings.LD_ENABLE_SNAPSHOTS and not settings.LD_DISABLE_BACKGROUND_TASKS
 
@@ -236,7 +259,7 @@ def create_html_snapshot(bookmark: Bookmark):
     if not is_html_snapshot_feature_active():
         return
 
-    asset = _create_snapshot_asset(bookmark)
+    asset = assets.create_snapshot_asset(bookmark)
     asset.save()
 
 
@@ -246,45 +269,10 @@ def create_html_snapshots(bookmark_list: List[Bookmark]):
 
     assets_to_create = []
     for bookmark in bookmark_list:
-        asset = _create_snapshot_asset(bookmark)
+        asset = assets.create_snapshot_asset(bookmark)
         assets_to_create.append(asset)
 
     BookmarkAsset.objects.bulk_create(assets_to_create)
-
-
-MAX_SNAPSHOT_FILENAME_LENGTH = 192
-
-
-def _create_snapshot_asset(bookmark: Bookmark) -> BookmarkAsset:
-    timestamp = formats.date_format(timezone.now(), "SHORT_DATE_FORMAT")
-    asset = BookmarkAsset(
-        bookmark=bookmark,
-        asset_type=BookmarkAsset.TYPE_SNAPSHOT,
-        content_type="text/html",
-        display_name=f"HTML snapshot from {timestamp}",
-        status=BookmarkAsset.STATUS_PENDING,
-    )
-    return asset
-
-
-def _generate_snapshot_filename(asset: BookmarkAsset) -> str:
-    def sanitize_char(char):
-        if char.isalnum() or char in ("-", "_", "."):
-            return char
-        else:
-            return "_"
-
-    formatted_datetime = asset.date_created.strftime("%Y-%m-%d_%H%M%S")
-    sanitized_url = "".join(sanitize_char(char) for char in asset.bookmark.url)
-
-    # Calculate the length of the non-URL parts of the filename
-    non_url_length = len(f"{asset.asset_type}{formatted_datetime}__.html.gz")
-    # Calculate the maximum length for the URL part
-    max_url_length = MAX_SNAPSHOT_FILENAME_LENGTH - non_url_length
-    # Truncate the URL if necessary
-    sanitized_url = sanitized_url[:max_url_length]
-
-    return f"{asset.asset_type}_{formatted_datetime}_{sanitized_url}.html.gz"
 
 
 # singe-file does not support running multiple instances in parallel, so we can
@@ -313,13 +301,8 @@ def _create_html_snapshot_task(asset_id: int):
     logger.info(f"Create HTML snapshot for bookmark. url={asset.bookmark.url}")
 
     try:
-        filename = _generate_snapshot_filename(asset)
-        filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
-        singlefile.create_snapshot(asset.bookmark.url, filepath)
-        asset.status = BookmarkAsset.STATUS_COMPLETE
-        asset.file = filename
-        asset.gzip = True
-        asset.save()
+        assets.create_snapshot(asset)
+
         logger.info(
             f"Successfully created HTML snapshot for bookmark. url={asset.bookmark.url}"
         )
@@ -328,8 +311,6 @@ def _create_html_snapshot_task(asset_id: int):
             f"Failed to HTML snapshot for bookmark. url={asset.bookmark.url}",
             exc_info=error,
         )
-        asset.status = BookmarkAsset.STATUS_FAILURE
-        asset.save()
 
 
 def create_missing_html_snapshots(user: User) -> int:

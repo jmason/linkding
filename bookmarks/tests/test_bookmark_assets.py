@@ -3,23 +3,15 @@ import os
 from django.conf import settings
 from django.test import TestCase
 
-from bookmarks.tests.helpers import (
-    BookmarkFactoryMixin,
-)
 from bookmarks.services import bookmarks
+from bookmarks.tests.helpers import BookmarkFactoryMixin
 
 
 class BookmarkAssetsTestCase(TestCase, BookmarkFactoryMixin):
-    def tearDown(self):
-        temp_files = [
-            f for f in os.listdir(settings.LD_ASSET_FOLDER) if f.startswith("temp")
-        ]
-        for temp_file in temp_files:
-            os.remove(os.path.join(settings.LD_ASSET_FOLDER, temp_file))
+    def setUp(self):
+        self.setup_temp_assets_dir()
 
     def setup_asset_file(self, filename):
-        if not os.path.exists(settings.LD_ASSET_FOLDER):
-            os.makedirs(settings.LD_ASSET_FOLDER)
         filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
         with open(filepath, "w") as f:
             f.write("test")

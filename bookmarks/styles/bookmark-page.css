@@ -10,8 +10,38 @@
 }
 
 /* Bookmark page grid */
-.bookmarks-page.grid {
-  grid-gap: var(--unit-9);
+.bookmarks-page {
+  &.grid {
+    grid-gap: var(--unit-9);
+  }
+
+  [ld-filter-drawer-trigger] {
+    display: none;
+  }
+
+  @media (max-width: 840px) {
+    section.side-panel {
+      display: none;
+    }
+
+    [ld-filter-drawer-trigger] {
+      display: inline-block;
+    }
+  }
+
+  &.collapse-side-panel {
+    main {
+      grid-column: span var(--grid-columns);
+    }
+
+    .side-panel {
+      display: none;
+    }
+
+    [ld-filter-drawer-trigger] {
+      display: inline-block;
+    }
+  }
 }
 
 /* Bookmark area header controls */
@@ -429,7 +459,7 @@ ul.bookmark-list {
 
   /* Hide section border when bulk edit bar is opened, otherwise borders overlap in dark mode due to using contrast colors */
 
-  &.active section:first-of-type .content-area-header {
+  &.active .main .section-header {
     border-bottom-color: transparent;
   }
 

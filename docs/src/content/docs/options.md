@@ -19,7 +19,7 @@ For multiple options, use one `-e` argument per option.
 
 ### Docker-compose
 
-For docker-compose options are configured using an `.env` file. 
+For docker-compose options are configured using an `.env` file.
 Follow the docker-compose setup in the README and copy `.env.sample` to `.env`. Then modify the options in `.env`.
 
 ## List of options
@@ -54,6 +54,12 @@ Values: `True`, `False` | Default = `False`
 
 Completely disables URL validation for bookmarks.
 This can be useful if you intend to store non fully qualified domain name URLs, such as network paths, or you want to store URLs that use another protocol than `http` or `https`.
+
+### `LD_REQUEST_MAX_CONTENT_LENGTH`
+
+Values: `Integer` as bytes | Default = `None`
+
+Configures the maximum content length for POST requests in the uwsgi application server. This can be used to prevent uploading large files that might cause the server to run out of memory. By default, the server does not limit the content length.
 
 ### `LD_REQUEST_TIMEOUT`
 
@@ -105,11 +111,11 @@ Values: `True`, `False` | Default = `False`
 
 Enables support for OpenID Connect (OIDC) authentication, allowing to use single sign-on (SSO) with OIDC providers.
 When enabled, this shows a button on the login page that allows users to authenticate using an OIDC provider.
-Users are associated by the email address provided from the OIDC provider, which is used as the username in linkding.
-If there is no user with that email address as username, a new user is created automatically. 
+Users are associated by the email address provided from the OIDC provider, which is by default also used as username in linkding. You can configure a custom claim to be used as username with `OIDC_USERNAME_CLAIM`.
+If there is no user with that email address as username, a new user is created automatically.
 
 This requires configuring a number of options, which of those you need depends on which OIDC provider you use and how it is configured.
-In general, you should find the required information in the UI of your OIDC provider, or its documentation. 
+In general, you should find the required information in the UI of your OIDC provider, or its documentation.
 
 The options are adopted from the [mozilla-django-oidc](https://mozilla-django-oidc.readthedocs.io/en/stable/) library, which is used by linkding for OIDC support.
 Please check their documentation for more information on the options.
@@ -124,6 +130,15 @@ The following options can be configured:
 - `OIDC_RP_SIGN_ALGO` - The algorithm the OIDC provider uses to sign ID tokens. Default is `RS256`.
 - `OIDC_USE_PKCE` - Whether to use PKCE for the OIDC flow. Default is `True`.
 - `OIDC_VERIFY_SSL` - Whether to verify the SSL certificate of the OIDC provider. Set to `False` if using self-signed certificates or custom certificate authority. Default is `True`.
+- `OIDC_RP_SCOPES` - Scopes asked for on the authorization flow. Default is `oidc email profile`.
+- `OIDC_USERNAME_CLAIM` - A custom claim to used as username for new accounts, for example `preferred_username`. If the configured claim does not exist or is empty, the email claim is used as fallback. Default is `email`.
+
+#### `OIDC` and `LD_SUPERUSER_NAME`
+
+As noted above, OIDC matches users by email address, but `LD_SUPERUSER_NAME` will only set the username.
+Instead of setting `LD_SUPERUSER_NAME` it is recommended that you use the method described in [User setup](/installation#user-setup) to configure a superuser with both username and email address.
+This way when OIDC searches for a matching user it will find the superuser account you created.
+Note that you should create the superuser **before** logging in with OIDC for the first time.
 
 <details>
 
@@ -198,7 +213,7 @@ All the other database variables below are only required for configured Postgres
 
 Values: `String` | Default =  `linkding`
 
-The name of the database. 
+The name of the database.
 
 ### `LD_DB_USER`
 
@@ -258,7 +273,7 @@ Alternative favicon providers:
 Values: `Float` | Default =  60.0
 
 When creating HTML archive snapshots, control the timeout for how long to wait for the snapshot to complete, in `seconds`.
-Defaults to 60 seconds; on lower-powered hardware you may need to increase this value. 
+Defaults to 60 seconds; on lower-powered hardware you may need to increase this value.
 
 ### `LD_SINGLEFILE_OPTIONS`
 

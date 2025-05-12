@@ -1,60 +1,22 @@
-import { Behavior, registerBehavior } from "./index";
+import { registerBehavior } from "./index";
+import { isKeyboardActive, setAfterPageLoadFocusTarget } from "./focus-utils";
+import { ModalBehavior } from "./modal";
 
-class DetailsModalBehavior extends Behavior {
-  constructor(element) {
-    super(element);
+class DetailsModalBehavior extends ModalBehavior {
+  doClose() {
+    super.doClose();
 
-    this.onClose = this.onClose.bind(this);
-    this.onKeyDown = this.onKeyDown.bind(this);
+    // Navigate to close URL
+    const closeUrl = this.element.dataset.closeUrl;
+    Turbo.visit(closeUrl, {
+      action: "replace",
+      frame: "details-modal",
+    });
 
-    this.overlayLink = element.querySelector("a:has(.modal-overlay)");
-    this.buttonLink = element.querySelector("a:has(button.close)");
-
-    this.overlayLink.addEventListener("click", this.onClose);
-    this.buttonLink.addEventListener("click", this.onClose);
-    document.addEventListener("keydown", this.onKeyDown);
-  }
-
-  destroy() {
-    this.overlayLink.removeEventListener("click", this.onClose);
-    this.buttonLink.removeEventListener("click", this.onClose);
-    document.removeEventListener("keydown", this.onKeyDown);
-  }
-
-  onKeyDown(event) {
-    // Skip if event occurred within an input element
-    const targetNodeName = event.target.nodeName;
-    const isInputTarget =
-      targetNodeName === "INPUT" ||
-      targetNodeName === "SELECT" ||
-      targetNodeName === "TEXTAREA";
-
-    if (isInputTarget) {
-      return;
-    }
-
-    if (event.key === "Escape") {
-      this.onClose(event);
-    }
-  }
-
-  onClose(event) {
-    event.preventDefault();
-    this.element.classList.add("closing");
-    this.element.addEventListener(
-      "animationend",
-      (event) => {
-        if (event.animationName === "fade-out") {
-          this.element.remove();
-
-          const closeUrl = this.overlayLink.href;
-          Turbo.visit(closeUrl, {
-            action: "replace",
-            frame: "details-modal",
-          });
-        }
-      },
-      { once: true },
+    // Try restore focus to view details to view details link of respective bookmark
+    const bookmarkId = this.element.dataset.bookmarkId;
+    setAfterPageLoadFocusTarget(
+      `ul.bookmark-list li[data-bookmark-id='${bookmarkId}'] a.view-action`,
     );
   }
 }
