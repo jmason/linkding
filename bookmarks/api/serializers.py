@@ -109,6 +109,9 @@ class BookmarkSerializer(serializers.ModelSerializer):
         # title and description to be populated automatically when left empty
         if not disable_scraping:
             bookmarks.enhance_with_website_metadata(saved_bookmark)
+
+        if 'date_added' in validated_data:
+          saved_bookmark['date_added'] = validated_data['date_added']
         return saved_bookmark
 
     def update(self, instance: Bookmark, validated_data):
