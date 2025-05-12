@@ -53,8 +53,6 @@ class BookmarkSerializer(serializers.ModelSerializer):
             "favicon_url",
             "preview_image_url",
             "tag_names",
-            "date_added",
-            "date_modified",
             "website_title",
             "website_description",
         ]
