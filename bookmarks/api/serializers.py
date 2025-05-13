@@ -67,6 +67,9 @@ class BookmarkSerializer(serializers.ModelSerializer):
     # Add dummy website title and description fields for backwards compatibility but keep them empty
     website_title = EmtpyField()
     website_description = EmtpyField()
+    # these are optional
+    date_added = serializers.DateTimeField(required=False)
+    date_modified = serializers.DateTimeField(required=False)
 
     def get_favicon_url(self, obj: Bookmark):
         if not obj.favicon_file:
@@ -110,9 +113,15 @@ class BookmarkSerializer(serializers.ModelSerializer):
         if not disable_scraping:
             bookmarks.enhance_with_website_metadata(saved_bookmark)
 
-        # if 'date_added' in validated_data:
-          # saved_bookmark.date_added = validated_data['date_added']
-          # saved_bookmark.save()
+        # override default timestamps, if specified
+        added = 'date_added' in validated_data
+        modified = 'date_modified' in validated_data
+        if added or modified:
+            if added:
+                saved_bookmark.date_added = validated_data['date_added']
+            if modified:
+                saved_bookmark.date_modified = validated_data['date_modified']
+            saved_bookmark.save()
 
         return saved_bookmark
 
