@@ -110,9 +110,9 @@ class BookmarkSerializer(serializers.ModelSerializer):
         if not disable_scraping:
             bookmarks.enhance_with_website_metadata(saved_bookmark)
 
-        if 'date_added' in validated_data:
-          saved_bookmark.date_added = validated_data['date_added']
-          saved_bookmark.save()
+        # if 'date_added' in validated_data:
+          # saved_bookmark.date_added = validated_data['date_added']
+          # saved_bookmark.save()
 
         return saved_bookmark
 
