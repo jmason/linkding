@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone, formats
 
 from bookmarks.middlewares import LinkdingMiddleware
-from bookmarks.models import Bookmark, UserProfile, User
+from bookmarks.models import Bookmark, BookmarkSearch, UserProfile, User
 from bookmarks.tests.helpers import BookmarkFactoryMixin, HtmlTestMixin
 from bookmarks.views import contexts
 
@@ -46,7 +46,6 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
            title="View snapshot on the Internet Archive Wayback Machine" target="{link_target}" rel="noopener">
             {label_content}
         </a>
-        <span>|</span>
         """,
             html,
         )
@@ -232,7 +231,7 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
             f"""
         <button type="submit" name="unshare" value="{bookmark.id}"
                 class="btn btn-link btn-sm btn-icon"
-                ld-confirm-button ld-confirm-icon="ld-icon-unshare" ld-confirm-question="Unshare?">
+                ld-confirm-button ld-confirm-question="Unshare?">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
             <use xlink:href="#ld-icon-share"></use>
           </svg>
@@ -248,7 +247,7 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
             f"""
         <button type="submit" name="mark_as_read" value="{bookmark.id}"
                 class="btn btn-link btn-sm btn-icon"
-                ld-confirm-button ld-confirm-icon="ld-icon-read" ld-confirm-question="Mark as read?">
+                ld-confirm-button ld-confirm-question="Mark as read?">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
             <use xlink:href="#ld-icon-unread"></use>
           </svg>
@@ -266,6 +265,7 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
             contexts.BookmarkListContext
         ] = contexts.ActiveBookmarkListContext,
         user: User | AnonymousUser = None,
+        is_preview: bool = False,
     ) -> str:
         rf = RequestFactory()
         request = rf.get(url)
@@ -273,7 +273,10 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         middleware = LinkdingMiddleware(lambda r: HttpResponse())
         middleware(request)
 
-        bookmark_list_context = context_type(request)
+        search = BookmarkSearch.from_request(request, request.GET)
+        bookmark_list_context = context_type(request, search)
+        if is_preview:
+            bookmark_list_context.is_preview = True
         context = RequestContext(request, {"bookmark_list": bookmark_list_context})
 
         template = Template("{% include 'bookmarks/bookmark_list.html' %}")
@@ -472,6 +475,27 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         self.assertEqual(tag_links[0].text, "#tag1")
         self.assertEqual(tag_links[1].text, "#tag2")
         self.assertEqual(tag_links[2].text, "#tag3")
+
+    def test_bookmark_tag_query_string(self):
+        # appends tag to existing query string
+        bookmark = self.setup_bookmark(title="term1 term2")
+        tag1 = self.setup_tag(name="tag1")
+        bookmark.tags.add(tag1)
+
+        html = self.render_template(url="/bookmarks?q=term1 and term2")
+        soup = self.make_soup(html)
+        tags = soup.select_one(".tags")
+        tag_links = tags.find_all("a")
+        self.assertEqual(len(tag_links), 1)
+        self.assertEqual(tag_links[0]["href"], "?q=term1+and+term2+%23tag1")
+
+        # wraps or expression in parentheses
+        html = self.render_template(url="/bookmarks?q=term1 or term2")
+        soup = self.make_soup(html)
+        tags = soup.select_one(".tags")
+        tag_links = tags.find_all("a")
+        self.assertEqual(len(tag_links), 1)
+        self.assertEqual(tag_links[0]["href"], "?q=%28term1+or+term2%29+%23tag1")
 
     def test_should_render_web_archive_link_with_absolute_date_setting(self):
         bookmark = self.setup_date_format_test(
@@ -884,6 +908,21 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         )
         self.assertNotes(html, note_html, 1)
 
+    def test_note_renders_markdown_with_linkify(self):
+        # Should linkify plain URL
+        self.setup_bookmark(notes="Example: https://example.com")
+        html = self.render_template()
+
+        note_html = '<p>Example: <a href="https://example.com" rel="nofollow">https://example.com</a></p>'
+        self.assertNotes(html, note_html, 1)
+
+        # Should not linkify URL in markdown link
+        self.setup_bookmark(notes="[https://example.com](https://example.com)")
+        html = self.render_template()
+
+        note_html = '<p><a href="https://example.com" rel="nofollow">https://example.com</a></p>'
+        self.assertNotes(html, note_html, 1)
+
     def test_note_cleans_html(self):
         self.setup_bookmark(notes='<script>alert("test")</script>')
         self.setup_bookmark(
@@ -999,6 +1038,34 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
             '<p class="empty-title h5">You have no bookmarks yet</p>', html
         )
 
+    def test_empty_state_with_valid_query_no_results(self):
+        self.setup_bookmark(title="Test Bookmark")
+        html = self.render_template(url="/bookmarks?q=nonexistent")
+
+        self.assertInHTML(
+            '<p class="empty-title h5">You have no bookmarks yet</p>', html
+        )
+
+    def test_empty_state_with_invalid_query(self):
+        self.setup_bookmark()
+        html = self.render_template(url="/bookmarks?q=(test")
+
+        self.assertInHTML('<p class="empty-title h5">Invalid search query</p>', html)
+        self.assertIn("Expected RPAREN", html)
+
+    def test_empty_state_with_legacy_search(self):
+        profile = self.get_or_create_test_user().profile
+        profile.legacy_search = True
+        profile.save()
+
+        self.setup_bookmark()
+        html = self.render_template(url="/bookmarks?q=(test")
+
+        # With legacy search, search queries are not validated
+        self.assertInHTML(
+            '<p class="empty-title h5">You have no bookmarks yet</p>', html
+        )
+
     def test_pagination_is_not_sticky_by_default(self):
         self.setup_bookmark()
         html = self.render_template()
@@ -1032,3 +1099,21 @@ class BookmarkListTemplateTest(TestCase, BookmarkFactoryMixin, HtmlTestMixin):
         soup = self.make_soup(html)
         bookmarks = soup.select("li[ld-bookmark-item]")
         self.assertEqual(10, len(bookmarks))
+
+    def test_no_actions_rendered_when_is_preview(self):
+        bookmark = self.setup_bookmark()
+        bookmark.date_added = timezone.now() - relativedelta(days=8)
+        bookmark.web_archive_snapshot_url = "https://example.com"
+        bookmark.save()
+
+        html = self.render_template(is_preview=True)
+
+        # Verify no actions are rendered
+        self.assertNoViewLink(html, bookmark)
+        self.assertNoBookmarkActions(html, bookmark)
+        self.assertMarkAsReadButton(html, bookmark, count=0)
+        self.assertUnshareButton(html, bookmark, count=0)
+        self.assertNotesToggle(html, count=0)
+
+        # But date should still be rendered
+        self.assertWebArchiveLink(html, "1 week ago", bookmark.web_archive_snapshot_url)

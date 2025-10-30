@@ -24,53 +24,6 @@ def update_query_string(context, **kwargs):
 
 
 @register.simple_tag(takes_context=True)
-def add_tag_to_query(context, tag_name: str):
-    params = context.request.GET.copy()
-
-    # Append to or create query string
-    query_string = params.get("q", "")
-    query_string = (query_string + " #" + tag_name).strip()
-    params.setlist("q", [query_string])
-
-    # Remove details ID and page number
-    params.pop("details", None)
-    params.pop("page", None)
-
-    return params.urlencode()
-
-
-@register.simple_tag(takes_context=True)
-def remove_tag_from_query(context, tag_name: str):
-    params = context.request.GET.copy()
-    if params.__contains__("q"):
-        # Split query string into parts
-        query_string = params.__getitem__("q")
-        query_parts = query_string.split()
-        # Remove tag with hash
-        tag_name_with_hash = "#" + tag_name
-        query_parts = [
-            part
-            for part in query_parts
-            if str.lower(part) != str.lower(tag_name_with_hash)
-        ]
-        # When using lax tag search, also remove tag without hash
-        profile = context.request.user_profile
-        if profile.tag_search == UserProfile.TAG_SEARCH_LAX:
-            query_parts = [
-                part for part in query_parts if str.lower(part) != str.lower(tag_name)
-            ]
-        # Rebuild query string
-        query_string = " ".join(query_parts)
-        params.__setitem__("q", query_string)
-
-    # Remove details ID and page number
-    params.pop("details", None)
-    params.pop("page", None)
-
-    return params.urlencode()
-
-
-@register.simple_tag(takes_context=True)
 def replace_query_param(context, **kwargs):
     query = context.request.GET.copy()
 
@@ -80,11 +33,6 @@ def replace_query_param(context, **kwargs):
         query.__setitem__(key, value)
 
     return query.urlencode()
-
-
-@register.filter(name="hash_tag")
-def hash_tag(tag_name):
-    return "#" + tag_name
 
 
 @register.filter(name="first_char")
@@ -142,5 +90,33 @@ def render_markdown(context, markdown_text):
 
     as_html = renderer.convert(markdown_text)
     sanitized_html = bleach.clean(as_html, markdown_tags, markdown_attrs)
+    linkified_html = bleach.linkify(sanitized_html)
 
-    return mark_safe(sanitized_html)
+    return mark_safe(linkified_html)
+
+
+def append_attr(widget, attr, value):
+    attrs = widget.attrs
+    if attrs.get(attr):
+        attrs[attr] += " " + value
+    else:
+        attrs[attr] = value
+
+
+@register.filter("form_field")
+def form_field(field, modifier_string):
+    modifiers = modifier_string.split(",")
+    has_errors = hasattr(field, "errors") and field.errors
+
+    if "validation" in modifiers and has_errors:
+        append_attr(field.field.widget, "aria-describedby", field.auto_id + "_error")
+    if "help" in modifiers:
+        append_attr(field.field.widget, "aria-describedby", field.auto_id + "_help")
+
+    # Some assistive technologies announce a field as invalid when it has the
+    # required attribute, even if the user has not interacted with the field
+    # yet. Set aria-invalid false to prevent this behavior.
+    if field.field.required and not has_errors:
+        append_attr(field.field.widget, "aria-invalid", "false")
+
+    return field

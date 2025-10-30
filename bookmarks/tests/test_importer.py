@@ -366,6 +366,32 @@ class ImporterTestCase(TestCase, BookmarkFactoryMixin, ImportTestMixin):
 
         self.assertListEqual(tag_names, ["tag-1", "tag-2", "tag-3"])
 
+    def test_ignore_long_tag_names(self):
+        long_tag = "a" * 65
+        valid_tag = "valid-tag"
+
+        test_html = self.render_html(
+            tags_html=f"""
+            <DT><A HREF="https://example.com" TAGS="{long_tag}, {valid_tag}">Example.com</A>
+            <DD>Example.com
+        """
+        )
+        result = import_netscape_html(test_html, self.get_or_create_test_user())
+
+        # Import should succeed
+        self.assertEqual(result.success, 1)
+        self.assertEqual(result.failed, 0)
+
+        # Only the valid tag should be created
+        tags = Tag.objects.all()
+        self.assertEqual(len(tags), 1)
+        self.assertEqual(tags[0].name, valid_tag)
+
+        # Bookmark should only have the valid tag assigned
+        bookmark = Bookmark.objects.get(url="https://example.com")
+        bookmark_tag_names = [tag.name for tag in bookmark.tags.all()]
+        self.assertEqual(bookmark_tag_names, [valid_tag])
+
     @disable_logging
     def test_validate_empty_or_missing_bookmark_url(self):
         test_html = self.render_html(
@@ -382,6 +408,21 @@ class ImporterTestCase(TestCase, BookmarkFactoryMixin, ImportTestMixin):
         self.assertEqual(Bookmark.objects.count(), 0)
         self.assertEqual(import_result.success, 0)
         self.assertEqual(import_result.failed, 2)
+
+    def test_generate_normalized_url(self):
+        html_tags = [
+            BookmarkHtmlTag(href="https://example.com/?z=1&a=2#"),
+            BookmarkHtmlTag(
+                href="foo.bar"
+            ),  # invalid URL, should be skipped without error
+        ]
+        import_html = self.render_html(tags=html_tags)
+        import_netscape_html(import_html, self.get_or_create_test_user())
+
+        self.assertEqual(Bookmark.objects.count(), 1)
+        self.assertEqual(
+            Bookmark.objects.all()[0].url_normalized, "https://example.com?a=2&z=1"
+        )
 
     def test_private_flag(self):
         # does not map private flag if not enabled in options

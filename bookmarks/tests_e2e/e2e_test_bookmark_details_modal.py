@@ -124,7 +124,7 @@ class BookmarkDetailsModalE2ETestCase(LinkdingE2ETestCase):
             # Cancel edit, verify return to details url
             details_url = url + f"&details={bookmark.id}"
             with self.page.expect_navigation(url=self.live_server_url + details_url):
-                self.page.get_by_text("Nevermind").click()
+                self.page.get_by_text("Cancel").click()
 
     def test_delete(self):
         bookmark = self.setup_bookmark()
@@ -140,8 +140,8 @@ class BookmarkDetailsModalE2ETestCase(LinkdingE2ETestCase):
 
             # Delete bookmark, verify return url
             with self.page.expect_navigation(url=self.live_server_url + url):
-                details_modal.get_by_text("Delete...").click()
-                details_modal.get_by_text("Confirm").click()
+                details_modal.get_by_text("Delete").click()
+                self.locate_confirm_dialog().get_by_text("Confirm").click()
 
             # verify bookmark is deleted
             self.locate_bookmark(bookmark.title)
@@ -173,7 +173,7 @@ class BookmarkDetailsModalE2ETestCase(LinkdingE2ETestCase):
 
             # Remove snapshot
             asset_list.get_by_text("Remove", exact=False).click()
-            asset_list.get_by_text("Confirm", exact=False).click()
+            self.locate_confirm_dialog().get_by_text("Confirm", exact=False).click()
 
             # Snapshot is removed
             expect(snapshot).not_to_be_visible()

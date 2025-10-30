@@ -1,5 +1,27 @@
 import { Behavior, registerBehavior } from "./index";
 
+class FormSubmit extends Behavior {
+  constructor(element) {
+    super(element);
+
+    this.onKeyDown = this.onKeyDown.bind(this);
+    this.element.addEventListener("keydown", this.onKeyDown);
+  }
+
+  destroy() {
+    this.element.removeEventListener("keydown", this.onKeyDown);
+  }
+
+  onKeyDown(event) {
+    // Check for Ctrl/Cmd + Enter combination
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.element.requestSubmit();
+    }
+  }
+}
+
 class AutoSubmitBehavior extends Behavior {
   constructor(element) {
     super(element);
@@ -14,6 +36,36 @@ class AutoSubmitBehavior extends Behavior {
 
   submit() {
     this.element.closest("form").requestSubmit();
+  }
+}
+
+// Resets form controls to their initial values before Turbo caches the DOM.
+// Useful for filter forms where navigating back would otherwise still show
+// values from after the form submission, which means the filters would be out
+// of sync with the URL.
+class FormResetBehavior extends Behavior {
+  constructor(element) {
+    super(element);
+
+    this.controls = this.element.querySelectorAll("input, select");
+    this.controls.forEach((control) => {
+      if (control.type === "checkbox" || control.type === "radio") {
+        control.__initialValue = control.checked;
+      } else {
+        control.__initialValue = control.value;
+      }
+    });
+  }
+
+  destroy() {
+    this.controls.forEach((control) => {
+      if (control.type === "checkbox" || control.type === "radio") {
+        control.checked = control.__initialValue;
+      } else {
+        control.value = control.__initialValue;
+      }
+      delete control.__initialValue;
+    });
   }
 }
 
@@ -51,5 +103,7 @@ class UploadButton extends Behavior {
   }
 }
 
+registerBehavior("ld-form-submit", FormSubmit);
 registerBehavior("ld-auto-submit", AutoSubmitBehavior);
+registerBehavior("ld-form-reset", FormResetBehavior);
 registerBehavior("ld-upload-button", UploadButton);

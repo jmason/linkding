@@ -143,6 +143,19 @@ class BookmarksApiTestCase(LinkdingApiTestCase, BookmarkFactoryMixin):
         )
         self.assertBookmarkListEqual(response.data["results"], bookmarks)
 
+    def test_list_bookmarks_should_filter_by_bundle(self):
+        self.authenticate()
+        search_value = self.get_random_string()
+        bookmarks = self.setup_numbered_bookmarks(5, prefix=search_value)
+        self.setup_numbered_bookmarks(5)
+        bundle = self.setup_bundle(search=search_value)
+
+        response = self.get(
+            reverse("linkding:bookmark-list") + f"?bundle={bundle.id}",
+            expected_status_code=status.HTTP_200_OK,
+        )
+        self.assertBookmarkListEqual(response.data["results"], bookmarks)
+
     def test_list_bookmarks_filter_unread(self):
         self.authenticate()
         unread_bookmarks = self.setup_numbered_bookmarks(5, unread=True)
@@ -246,6 +259,21 @@ class BookmarksApiTestCase(LinkdingApiTestCase, BookmarkFactoryMixin):
 
         response = self.get(
             reverse("linkding:bookmark-archived") + "?q=" + search_value,
+            expected_status_code=status.HTTP_200_OK,
+        )
+        self.assertBookmarkListEqual(response.data["results"], archived_bookmarks)
+
+    def test_list_archived_bookmarks_should_filter_by_bundle(self):
+        self.authenticate()
+        search_value = self.get_random_string()
+        archived_bookmarks = self.setup_numbered_bookmarks(
+            5, archived=True, prefix=search_value
+        )
+        self.setup_numbered_bookmarks(5, archived=True)
+        bundle = self.setup_bundle(search=search_value)
+
+        response = self.get(
+            reverse("linkding:bookmark-archived") + f"?bundle={bundle.id}",
             expected_status_code=status.HTTP_200_OK,
         )
         self.assertBookmarkListEqual(response.data["results"], archived_bookmarks)
@@ -1018,6 +1046,29 @@ class BookmarksApiTestCase(LinkdingApiTestCase, BookmarkFactoryMixin):
             self.assertEqual(expected_metadata.title, metadata["title"])
             self.assertEqual(expected_metadata.description, metadata["description"])
             self.assertEqual(expected_metadata.preview_image, metadata["preview_image"])
+
+    def test_check_returns_bookmark_using_normalized_url(self):
+        self.authenticate()
+
+        # Create bookmark with one URL variant
+        bookmark = self.setup_bookmark(
+            url="https://EXAMPLE.COM/path/?z=1&a=2",
+            title="Example title",
+            description="Example description",
+        )
+
+        # Check with different URL variant that should normalize to the same URL
+        url = reverse("linkding:bookmark-check")
+        check_url = urllib.parse.quote_plus("https://example.com/path?a=2&z=1")
+        response = self.get(
+            f"{url}?url={check_url}", expected_status_code=status.HTTP_200_OK
+        )
+        bookmark_data = response.data["bookmark"]
+
+        # Should find the existing bookmark despite URL differences
+        self.assertIsNotNone(bookmark_data)
+        self.assertEqual(bookmark.id, bookmark_data["id"])
+        self.assertEqual(bookmark.title, bookmark_data["title"])
 
     def test_check_returns_no_auto_tags_if_none_configured(self):
         self.authenticate()

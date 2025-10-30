@@ -140,6 +140,15 @@
           </div>
         </div>
         <div class="form-group">
+          <label for="{{ form.hide_bundles.id_for_label }}" class="form-checkbox">
+            {{ form.hide_bundles }}
+            <i class="form-icon"></i> Hide bundles
+          </label>
+          <div class="form-input-hint">
+            Allows to hide the bundles in the side panel if you don't intend to use them.
+          </div>
+        </div>
+        <div class="form-group">
           <label for="{{ form.tag_search.id_for_label }}" class="form-label">Tag search</label>
           {{ form.tag_search|add_class:"form-select width-25 width-sm-100" }}
           <div class="form-input-hint">
@@ -147,6 +156,18 @@
             In lax mode, tags can also be searched without the hash character.
             Note that tags without the hash character are indistinguishable from search terms, which means the search
             result will also include bookmarks where a search term matches otherwise.
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="{{ form.legacy_search.id_for_label }}" class="form-checkbox">
+            {{ form.legacy_search }}
+            <i class="form-icon"></i> Enable legacy search
+          </label>
+          <div class="form-input-hint">
+            Since version 1.44.0, linkding has a new search engine that supports logical expressions (and, or, not).
+            If you run into any issues with the new search, you can enable this option to temporarily switch back to the old search.
+            Please report any issues you encounter with the new search on <a href="https://github.com/sissbruecker/linkding/issues" target="_blank">GitHub</a> so they can be addressed.
+            This option will be removed in a future version.
           </div>
         </div>
         <div class="form-group">
@@ -258,6 +279,17 @@ reddit.com/r/Music music reddit</pre>
           <div class="form-input-hint">
             Sets the default state for the "Mark as unread" option when creating a new bookmark.
             Setting this option will make all new bookmarks default to unread.
+            This can be overridden when creating each new bookmark.
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="{{ form.default_mark_shared.id_for_label }}" class="form-checkbox">
+            {{ form.default_mark_shared }}
+            <i class="form-icon"></i> Create bookmarks as shared by default
+          </label>
+          <div class="form-input-hint">
+            Sets the default state for the "Share" option when creating a new bookmark.
+            Setting this option will make all new bookmarks default to shared.
             This can be overridden when creating each new bookmark.
           </div>
         </div>
@@ -374,17 +406,17 @@ reddit.com/r/Music music reddit</pre>
           <td>{{ version_info }}</td>
         </tr>
         <tr>
-          <td rowspan="3" style="vertical-align: top">Links</td>
-          <td><a href="https://github.com/sissbruecker/linkding/"
-                 target="_blank">GitHub</a></td>
-        </tr>
-        <tr>
-          <td><a href="https://linkding.link/"
-                 target="_blank">Documentation</a></td>
-        </tr>
-        <tr>
-          <td><a href="https://github.com/sissbruecker/linkding/blob/master/CHANGELOG.md"
-                 target="_blank">Changelog</a></td>
+          <td style="vertical-align: top">Links</td>
+          <td>
+            <div class="d-flex flex-column gap-2">
+              <a href="https://github.com/sissbruecker/linkding/"
+                 target="_blank">GitHub</a>
+              <a href="https://linkding.link/"
+                 target="_blank">Documentation</a>
+              <a href="https://github.com/sissbruecker/linkding/blob/master/CHANGELOG.md"
+                 target="_blank">Changelog</a>
+            </div>
+          </td>
         </tr>
         </tbody>
       </table>
@@ -395,21 +427,25 @@ reddit.com/r/Music music reddit</pre>
     (function init() {
       const enableSharing = document.getElementById("{{ form.enable_sharing.id_for_label }}");
       const enablePublicSharing = document.getElementById("{{ form.enable_public_sharing.id_for_label }}");
+      const defaultMarkShared = document.getElementById("{{ form.default_mark_shared.id_for_label }}");
       const bookmarkDescriptionDisplay = document.getElementById("{{ form.bookmark_description_display.id_for_label }}");
       const bookmarkDescriptionMaxLines = document.getElementById("{{ form.bookmark_description_max_lines.id_for_label }}");
 
-      // Automatically disable public bookmark sharing if bookmark sharing is disabled
-      function updatePublicSharing() {
+      // Automatically disable public bookmark sharing and default shared option if bookmark sharing is disabled
+      function updateSharingOptions() {
         if (enableSharing.checked) {
           enablePublicSharing.disabled = false;
+          defaultMarkShared.disabled = false;
         } else {
           enablePublicSharing.disabled = true;
           enablePublicSharing.checked = false;
+          defaultMarkShared.disabled = true;
+          defaultMarkShared.checked = false;
         }
       }
 
-      updatePublicSharing();
-      enableSharing.addEventListener("change", updatePublicSharing);
+      updateSharingOptions();
+      enableSharing.addEventListener("change", updateSharingOptions);
 
       // Automatically hide the bookmark description max lines input if the description display is set to inline
       function updateBookmarkDescriptionMaxLines() {
