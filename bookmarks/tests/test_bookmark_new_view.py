@@ -78,9 +78,9 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
         html = response.content.decode()
 
         self.assertInHTML(
-            '<input type="text" name="url" value="http://example.com" '
-            'placeholder=" " autofocus class="form-input" required '
-            'id="id_url">',
+            """
+            <input type="text" name="url" aria-invalid="false" autofocus class="form-input" required id="id_url" value="http://example.com">
+            """,
             html,
         )
 
@@ -110,6 +110,20 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
             html,
         )
 
+    def test_should_prefill_tags_from_url_parameter(self):
+        response = self.client.get(
+            reverse("linkding:bookmarks.new") + "?tags=tag1%20tag2%20tag3"
+        )
+        html = response.content.decode()
+
+        self.assertInHTML(
+            """
+            <input type="text" name="tag_string" value="tag1 tag2 tag3" 
+                aria-describedby="id_tag_string_help" autocapitalize="off" autocomplete="off" class="form-input" id="id_tag_string">
+            """,
+            html,
+        )
+
     def test_should_prefill_notes_from_url_parameter(self):
         response = self.client.get(
             reverse("linkding:bookmarks.new")
@@ -124,8 +138,8 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
                     <span class="form-label d-inline-block">Notes</span>
                 </summary>
                 <label for="id_notes" class="text-assistive">Notes</label>
-                <textarea name="notes" cols="40" rows="8" class="form-input" id="id_notes">**Find** more info [here](http://example.com)</textarea>
-                <div class="form-input-hint">
+                <textarea name="notes" cols="40" rows="8" class="form-input" id="id_notes" aria-describedby="id_notes_help">**Find** more info [here](http://example.com)</textarea>
+                <div id="id_notes_help" class="form-input-hint">
                     Additional notes, supports Markdown.
                 </div>
             </details>
@@ -183,12 +197,12 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             """
-            <label for="id_shared" class="form-checkbox">
-              <input type="checkbox" name="shared" id="id_shared">
-              <i class="form-icon"></i>
-              <span>Share</span>
-            </label>            
-        """,
+            <div class="form-checkbox">
+                <input type="checkbox" name="shared" aria-describedby="id_shared_help" id="id_shared">
+                <i class="form-icon"></i>
+                <label for="id_shared">Share</label>
+            </div>          
+            """,
             html,
             count=0,
         )
@@ -200,12 +214,12 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             """
-            <label for="id_shared" class="form-checkbox">
-              <input type="checkbox" name="shared" id="id_shared">
-              <i class="form-icon"></i>
-              <span>Share</span>
-            </label>            
-        """,
+            <div class="form-checkbox">
+                <input type="checkbox" name="shared" aria-describedby="id_shared_help" id="id_shared">
+                <i class="form-icon"></i>
+                <label for="id_shared">Share</label>
+            </div>              
+            """,
             html,
             count=1,
         )
@@ -218,10 +232,10 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
         html = response.content.decode()
         self.assertInHTML(
             """
-          <div class="form-input-hint">
-              Share this bookmark with other registered users.
-          </div>
-        """,
+              <div id="id_shared_help" class="form-input-hint">
+                  Share this bookmark with other registered users.
+              </div>
+            """,
             html,
         )
 
@@ -232,10 +246,10 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
         html = response.content.decode()
         self.assertInHTML(
             """
-          <div class="form-input-hint">
-              Share this bookmark with other registered users and anonymous users.
-          </div>
-        """,
+              <div id="id_shared_help" class="form-input-hint">
+                  Share this bookmark with other registered users and anonymous users.
+              </div>
+            """,
             html,
         )
 
@@ -252,7 +266,7 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
         html = response.content.decode()
 
         self.assertInHTML(
-            '<input type="checkbox" name="unread" id="id_unread">',
+            '<input type="checkbox" name="unread" id="id_unread" aria-describedby="id_unread_help">',
             html,
         )
 
@@ -264,6 +278,31 @@ class BookmarkNewViewTestCase(TestCase, BookmarkFactoryMixin):
         html = response.content.decode()
 
         self.assertInHTML(
-            '<input type="checkbox" name="unread" id="id_unread" checked="">',
+            '<input type="checkbox" name="unread" id="id_unread" checked="" aria-describedby="id_unread_help">',
+            html,
+        )
+
+    def test_should_not_check_shared_by_default(self):
+        self.user.profile.enable_sharing = True
+        self.user.profile.save()
+
+        response = self.client.get(reverse("linkding:bookmarks.new"))
+        html = response.content.decode()
+
+        self.assertInHTML(
+            '<input type="checkbox" name="shared" id="id_shared" aria-describedby="id_shared_help">',
+            html,
+        )
+
+    def test_should_check_shared_when_configured_in_profile(self):
+        self.user.profile.enable_sharing = True
+        self.user.profile.default_mark_shared = True
+        self.user.profile.save()
+
+        response = self.client.get(reverse("linkding:bookmarks.new"))
+        html = response.content.decode()
+
+        self.assertInHTML(
+            '<input type="checkbox" name="shared" id="id_shared" checked="" aria-describedby="id_shared_help">',
             html,
         )

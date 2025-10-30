@@ -19,8 +19,8 @@ def create_bookmark(
     disable_html_snapshot: bool = False,
 ):
     # If URL is already bookmarked, then update it
-    existing_bookmark: Bookmark = Bookmark.objects.filter(
-        owner=current_user, url=bookmark.url
+    existing_bookmark: Bookmark = Bookmark.query_existing(
+        current_user, bookmark.url
     ).first()
 
     if existing_bookmark is not None:
@@ -29,9 +29,11 @@ def create_bookmark(
 
     # Set currently logged in user as owner
     bookmark.owner = current_user
-    # Set dates
-    bookmark.date_added = timezone.now()
-    bookmark.date_modified = timezone.now()
+    # Set dates only if not already provided
+    if not bookmark.date_added:
+        bookmark.date_added = timezone.now()
+    if not bookmark.date_modified:
+        bookmark.date_modified = timezone.now()
     bookmark.save()
     # Update tag list
     _update_bookmark_tags(bookmark, tag_string, current_user)
@@ -206,6 +208,15 @@ def refresh_bookmarks_metadata(bookmark_ids: [Union[int, str]], current_user: Us
     for bookmark in owned_bookmarks:
         tasks.refresh_metadata(bookmark)
         tasks.load_preview_image(current_user, bookmark)
+
+
+def create_html_snapshots(bookmark_ids: list[Union[int, str]], current_user: User):
+    sanitized_bookmark_ids = _sanitize_id_list(bookmark_ids)
+    owned_bookmarks = Bookmark.objects.filter(
+        owner=current_user, id__in=sanitized_bookmark_ids
+    )
+
+    tasks.create_html_snapshots(owned_bookmarks)
 
 
 def _merge_bookmark_data(from_bookmark: Bookmark, to_bookmark: Bookmark):

@@ -65,43 +65,31 @@ Small improvements, bugfixes and documentation improvements are always welcome. 
 The application is built using the Django web framework. You can get started by checking out the excellent [Django docs](https://docs.djangoproject.com/en/4.1/). The `bookmarks` folder contains the actual bookmark application. Other than that the code should be self-explanatory / standard Django stuff 🙂.
 
 ### Prerequisites
-- Python 3.12
+- Python 3.13
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Node.js
 
 ### Setup
 
-Create a virtual environment for the application (https://docs.python.org/3/tutorial/venv.html):
+Initialize the development environment with:
 ```
-python3 -m venv ~/environments/linkding
+make init
 ```
-Activate the environment for your shell:
-```
-source ~/environments/linkding/bin/activate[.csh|.fish]
-```
-Within the active environment install the application dependencies from the application folder:
-```
-pip3 install -r requirements.txt -r requirements.dev.txt
-```
-Install frontend dependencies:
-```
-npm install
-```
-Initialize database:
-```
-mkdir -p data
-python3 manage.py migrate
-```
+This sets up a virtual environment using uv, installs NPM dependencies and runs migrations to create the initial database.
+
 Create a user for the frontend:
 ```
-python3 manage.py createsuperuser --username=joe --email=joe@example.com
+uv run manage.py createsuperuser --username=joe --email=joe@example.com
 ```
-Start the Node.js development server (used for compiling JavaScript components like tag auto-completion) with:
+
+Run the frontend build for bundling frontend components with:
 ```
-npm run dev
+make frontend
 ```
-Start the Django development server with:
+
+Then start the Django development server with:
 ```
-python3 manage.py runserver
+make serve
 ```
 The frontend is now available under http://localhost:8000
 
@@ -127,14 +115,14 @@ Once checked out, only the following commands are required to get started:
 
 Create a user for the frontend:
 ```
-python3 manage.py createsuperuser --username=joe --email=joe@example.com
+uv run manage.py createsuperuser --username=joe --email=joe@example.com
 ```
 Start the Node.js development server (used for compiling JavaScript components like tag auto-completion) with:
 ```
-npm run dev
+make frontend
 ```
 Start the Django development server with:
 ```
-python3 manage.py runserver
+make serve
 ```
 The frontend is now available under http://localhost:8000

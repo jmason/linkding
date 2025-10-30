@@ -43,6 +43,17 @@ urlpatterns = [
         views.assets.read,
         name="assets.read",
     ),
+    # Bundles
+    path("bundles", views.bundles.index, name="bundles.index"),
+    path("bundles/action", views.bundles.action, name="bundles.action"),
+    path("bundles/new", views.bundles.new, name="bundles.new"),
+    path("bundles/<int:bundle_id>/edit", views.bundles.edit, name="bundles.edit"),
+    path("bundles/preview", views.bundles.preview, name="bundles.preview"),
+    # Tags
+    path("tags", views.tags.tags_index, name="tags.index"),
+    path("tags/new", views.tags.tag_new, name="tags.new"),
+    path("tags/<int:tag_id>/edit", views.tags.tag_edit, name="tags.edit"),
+    path("tags/merge", views.tags.tag_merge, name="tags.merge"),
     # Settings
     path("settings", views.settings.general, name="settings.index"),
     path("settings/general", views.settings.general, name="settings.general"),
@@ -64,6 +75,7 @@ urlpatterns = [
         include(api_routes.bookmark_asset_router.urls),
     ),
     path("api/tags/", include(api_routes.tag_router.urls)),
+    path("api/bundles/", include(api_routes.bundle_router.urls)),
     path("api/user/", include(api_routes.user_router.urls)),
     # Feeds
     path("feeds/<str:feed_key>/all", feeds.AllBookmarksFeed(), name="feeds.all"),
@@ -80,6 +92,8 @@ urlpatterns = [
     path("manifest.json", views.manifest, name="manifest"),
     # Custom CSS
     path("custom_css", views.custom_css, name="custom_css"),
+    # OpenSearch
+    path("opensearch.xml", views.opensearch, name="opensearch"),
 ]
 
 # Put all linkding URLs into a linkding namespace
@@ -113,10 +127,9 @@ if settings.LD_ENABLE_OIDC:
     urlpatterns.append(path("oidc/", include("mozilla_django_oidc.urls")))
 
 # Debug toolbar
-if settings.DEBUG:
-    import debug_toolbar
-
-    urlpatterns.append(path("__debug__/", include(debug_toolbar.urls)))
+# if settings.DEBUG:
+#    import debug_toolbar
+#    urlpatterns.append(path("__debug__/", include(debug_toolbar.urls)))
 
 # Registration
 if settings.ALLOW_REGISTRATION:

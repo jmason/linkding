@@ -224,12 +224,13 @@ textarea.form-input {
   position: relative;
 
   input {
-    clip: rect(0, 0, 0, 0);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
+    opacity: 0;
     position: absolute;
-    width: 1px;
+    top: calc((var(--control-size-sm) - var(--control-icon-size)) / 2);
+    left: 0;
+    height: var(--control-icon-size);
+    width: var(--control-icon-size);
+    cursor: pointer;
 
     &:focus-visible + .form-icon {
       outline: var(--focus-outline);
@@ -243,9 +244,9 @@ textarea.form-input {
   }
 
   .form-icon {
+    pointer-events: none;
     border: var(--border-width) solid var(--checkbox-border-color);
     box-shadow: var(--input-box-shadow);
-    cursor: pointer;
     display: inline-block;
     position: absolute;
     transition:
@@ -429,13 +430,21 @@ textarea.form-input {
 /* Form element: Input groups */
 .input-group {
   display: flex;
+  border-radius: var(--border-radius);
+  box-shadow: var(--input-box-shadow);
+
+  > * {
+    box-shadow: none !important;
+  }
 
   .input-group-addon {
-    background: var(--body-color);
+    display: flex;
+    align-items: center;
+    background: var(--input-bg-color);
     border: var(--border-width) solid var(--input-border-color);
     border-radius: var(--border-radius);
     line-height: var(--line-height);
-    padding: var(--control-padding-y) var(--control-padding-x);
+    padding: 0 var(--control-padding-x);
     white-space: nowrap;
 
     &.addon-sm {

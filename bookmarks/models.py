@@ -1,19 +1,20 @@
-import binascii
 import hashlib
 import logging
 import os
 from typing import List
 
+import binascii
 from django import forms
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.http import QueryDict
 
-from bookmarks.utils import unique
+from bookmarks.utils import unique, normalize_url
 from bookmarks.validators import BookmarkURLValidator
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def parse_tag_string(tag_string: str, delimiter: str = ","):
         return []
     names = tag_string.strip().split(delimiter)
     # remove empty names, sanitize remaining names
-    names = [sanitize_tag_name(name) for name in names if name]
+    names = [sanitize_tag_name(name) for name in names if name.strip()]
     # remove duplicates
     names = unique(names, str.lower)
     names.sort(key=str.lower)
@@ -53,6 +54,7 @@ def build_tag_string(tag_names: List[str], delimiter: str = ","):
 
 class Bookmark(models.Model):
     url = models.CharField(max_length=2048, validators=[BookmarkURLValidator()])
+    url_normalized = models.CharField(max_length=2048, blank=True, db_index=True)
     title = models.CharField(max_length=512, blank=True)
     description = models.TextField(blank=True)
     notes = models.TextField(blank=True)
@@ -95,8 +97,22 @@ class Bookmark(models.Model):
         names = [tag.name for tag in self.tags.all()]
         return sorted(names)
 
+    def save(self, *args, **kwargs):
+        self.url_normalized = normalize_url(self.url)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.resolved_title + " (" + self.url[:30] + "...)"
+
+    @staticmethod
+    def query_existing(owner: User, url: str) -> models.QuerySet:
+        # Find existing bookmark by normalized URL, or fall back to exact URL if
+        # normalized URL was not generated for whatever reason
+        normalized_url = normalize_url(url)
+        q = Q(owner=owner) & (
+            Q(url_normalized=normalized_url) | Q(url_normalized="", url=url)
+        )
+        return Bookmark.objects.filter(q)
 
 
 @receiver(post_delete, sender=Bookmark)
@@ -132,6 +148,14 @@ class BookmarkAsset(models.Model):
     status = models.CharField(max_length=64, blank=False, null=False)
     gzip = models.BooleanField(default=False, null=False)
 
+    @property
+    def download_name(self):
+        return (
+            f"{self.display_name}.html"
+            if self.asset_type == BookmarkAsset.TYPE_SNAPSHOT
+            else self.display_name
+        )
+
     def save(self, *args, **kwargs):
         if self.file:
             try:
@@ -157,6 +181,27 @@ def bookmark_asset_deleted(sender, instance, **kwargs):
                 logger.error(f"Failed to delete asset file: {filepath}", exc_info=error)
 
 
+class BookmarkBundle(models.Model):
+    name = models.CharField(max_length=256, blank=False)
+    search = models.CharField(max_length=256, blank=True)
+    any_tags = models.CharField(max_length=1024, blank=True)
+    all_tags = models.CharField(max_length=1024, blank=True)
+    excluded_tags = models.CharField(max_length=1024, blank=True)
+    order = models.IntegerField(null=False, default=0)
+    date_created = models.DateTimeField(auto_now_add=True, null=False)
+    date_modified = models.DateTimeField(auto_now=True, null=False)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+
+class BookmarkBundleForm(forms.ModelForm):
+    class Meta:
+        model = BookmarkBundle
+        fields = ["name", "search", "any_tags", "all_tags", "excluded_tags"]
+
+
 class BookmarkSearch:
     SORT_ADDED_ASC = "added_asc"
     SORT_ADDED_DESC = "added_desc"
@@ -171,34 +216,54 @@ class BookmarkSearch:
     FILTER_UNREAD_YES = "yes"
     FILTER_UNREAD_NO = "no"
 
-    params = ["q", "user", "sort", "shared", "unread"]
+    params = [
+        "q",
+        "user",
+        "bundle",
+        "sort",
+        "shared",
+        "unread",
+        "modified_since",
+        "added_since",
+    ]
     preferences = ["sort", "shared", "unread"]
     defaults = {
         "q": "",
         "user": "",
+        "bundle": None,
         "sort": SORT_ADDED_DESC,
         "shared": FILTER_SHARED_OFF,
         "unread": FILTER_UNREAD_OFF,
+        "modified_since": None,
+        "added_since": None,
     }
 
     def __init__(
         self,
         q: str = None,
         user: str = None,
+        bundle: BookmarkBundle = None,
         sort: str = None,
         shared: str = None,
         unread: str = None,
+        modified_since: str = None,
+        added_since: str = None,
         preferences: dict = None,
+        request: any = None,
     ):
         if not preferences:
             preferences = {}
         self.defaults = {**BookmarkSearch.defaults, **preferences}
+        self.request = request
 
         self.q = q or self.defaults["q"]
         self.user = user or self.defaults["user"]
+        self.bundle = bundle or self.defaults["bundle"]
         self.sort = sort or self.defaults["sort"]
         self.shared = shared or self.defaults["shared"]
         self.unread = unread or self.defaults["unread"]
+        self.modified_since = modified_since or self.defaults["modified_since"]
+        self.added_since = added_since or self.defaults["added_since"]
 
     def is_modified(self, param):
         value = self.__dict__[param]
@@ -226,7 +291,14 @@ class BookmarkSearch:
 
     @property
     def query_params(self):
-        return {param: self.__dict__[param] for param in self.modified_params}
+        query_params = {}
+        for param in self.modified_params:
+            value = self.__dict__[param]
+            if isinstance(value, models.Model):
+                query_params[param] = value.id
+            else:
+                query_params[param] = value
+        return query_params
 
     @property
     def preferences_dict(self):
@@ -235,14 +307,21 @@ class BookmarkSearch:
         }
 
     @staticmethod
-    def from_request(query_dict: QueryDict, preferences: dict = None):
+    def from_request(request: any, query_dict: QueryDict, preferences: dict = None):
         initial_values = {}
         for param in BookmarkSearch.params:
             value = query_dict.get(param)
             if value:
-                initial_values[param] = value
+                if param == "bundle":
+                    initial_values[param] = BookmarkBundle.objects.filter(
+                        owner=request.user, pk=value
+                    ).first()
+                else:
+                    initial_values[param] = value
 
-        return BookmarkSearch(**initial_values, preferences=preferences)
+        return BookmarkSearch(
+            **initial_values, preferences=preferences, request=request
+        )
 
 
 class BookmarkSearchForm(forms.Form):
@@ -265,9 +344,12 @@ class BookmarkSearchForm(forms.Form):
 
     q = forms.CharField()
     user = forms.ChoiceField(required=False)
+    bundle = forms.CharField(required=False)
     sort = forms.ChoiceField(choices=SORT_CHOICES)
     shared = forms.ChoiceField(choices=FILTER_SHARED_CHOICES, widget=forms.RadioSelect)
     unread = forms.ChoiceField(choices=FILTER_UNREAD_CHOICES, widget=forms.RadioSelect)
+    modified_since = forms.CharField(required=False)
+    added_since = forms.CharField(required=False)
 
     def __init__(
         self,
@@ -287,7 +369,11 @@ class BookmarkSearchForm(forms.Form):
 
         for param in search.params:
             # set initial values for modified params
-            self.fields[param].initial = search.__dict__[param]
+            value = search.__dict__.get(param)
+            if isinstance(value, models.Model):
+                self.fields[param].initial = value.id
+            else:
+                self.fields[param].initial = value
 
             # Mark non-editable modified fields as hidden. That way, templates
             # rendering a form can just loop over hidden_fields to ensure that
@@ -403,11 +489,14 @@ class UserProfile(models.Model):
     search_preferences = models.JSONField(default=dict, null=False)
     enable_automatic_html_snapshots = models.BooleanField(default=True, null=False)
     default_mark_unread = models.BooleanField(default=False, null=False)
+    default_mark_shared = models.BooleanField(default=False, null=False)
     items_per_page = models.IntegerField(
         null=False, default=30, validators=[MinValueValidator(10)]
     )
     sticky_pagination = models.BooleanField(default=False, null=False)
     collapse_side_panel = models.BooleanField(default=False, null=False)
+    hide_bundles = models.BooleanField(default=False, null=False)
+    legacy_search = models.BooleanField(default=False, null=False)
 
     def save(self, *args, **kwargs):
         if self.custom_css:
@@ -443,11 +532,14 @@ class UserProfileForm(forms.ModelForm):
             "display_remove_bookmark_action",
             "permanent_notes",
             "default_mark_unread",
+            "default_mark_shared",
             "custom_css",
             "auto_tagging_rules",
             "items_per_page",
             "sticky_pagination",
             "collapse_side_panel",
+            "hide_bundles",
+            "legacy_search",
         ]
 
 

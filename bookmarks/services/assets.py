@@ -39,9 +39,10 @@ def create_snapshot(asset: BookmarkAsset):
         # Store as gzip in asset folder
         filename = _generate_asset_filename(asset, asset.bookmark.url, "html.gz")
         filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
-        with open(temp_filepath, "rb") as temp_file, gzip.open(
-            filepath, "wb"
-        ) as gz_file:
+        with (
+            open(temp_filepath, "rb") as temp_file,
+            gzip.open(filepath, "wb") as gz_file,
+        ):
             shutil.copyfileobj(temp_file, gz_file)
 
         # Remove temporary file
@@ -53,6 +54,7 @@ def create_snapshot(asset: BookmarkAsset):
         asset.save()
 
         asset.bookmark.latest_snapshot = asset
+        asset.bookmark.date_modified = timezone.now()
         asset.bookmark.save()
     except Exception as error:
         asset.status = BookmarkAsset.STATUS_FAILURE
@@ -75,6 +77,7 @@ def upload_snapshot(bookmark: Bookmark, html: bytes):
     asset.save()
 
     asset.bookmark.latest_snapshot = asset
+    asset.bookmark.date_modified = timezone.now()
     asset.bookmark.save()
 
     return asset
@@ -92,14 +95,33 @@ def upload_asset(bookmark: Bookmark, upload_file: UploadedFile):
             gzip=False,
         )
         name, extension = os.path.splitext(upload_file.name)
-        filename = _generate_asset_filename(asset, name, extension.lstrip("."))
-        filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
-        with open(filepath, "wb") as f:
-            for chunk in upload_file.chunks():
-                f.write(chunk)
-        asset.file = filename
-        asset.file_size = upload_file.size
+
+        # automatically gzip the file if it is not already gzipped
+        if upload_file.content_type != "application/gzip":
+            filename = _generate_asset_filename(
+                asset, name, extension.lstrip(".") + ".gz"
+            )
+            filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
+            with gzip.open(filepath, "wb", compresslevel=9) as f:
+                for chunk in upload_file.chunks():
+                    f.write(chunk)
+            asset.gzip = True
+            asset.file = filename
+            asset.file_size = os.path.getsize(filepath)
+        else:
+            filename = _generate_asset_filename(asset, name, extension.lstrip("."))
+            filepath = os.path.join(settings.LD_ASSET_FOLDER, filename)
+            with open(filepath, "wb") as f:
+                for chunk in upload_file.chunks():
+                    f.write(chunk)
+            asset.file = filename
+            asset.file_size = upload_file.size
+
         asset.save()
+
+        asset.bookmark.date_modified = timezone.now()
+        asset.bookmark.save()
+
         logger.info(
             f"Successfully uploaded asset file. bookmark={bookmark} file={upload_file.name}"
         )
@@ -128,9 +150,10 @@ def remove_asset(asset: BookmarkAsset):
         )
 
         bookmark.latest_snapshot = latest
-        bookmark.save()
 
     asset.delete()
+    bookmark.date_modified = timezone.now()
+    bookmark.save()
 
 
 def _generate_asset_filename(

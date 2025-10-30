@@ -1,3 +1,4 @@
+import os
 from django.contrib import admin, messages
 from django.contrib.admin import AdminSite
 from django.contrib.auth.admin import UserAdmin
@@ -11,7 +12,15 @@ from huey.contrib.djhuey import HUEY as huey
 from rest_framework.authtoken.admin import TokenAdmin
 from rest_framework.authtoken.models import TokenProxy
 
-from bookmarks.models import Bookmark, BookmarkAsset, Tag, UserProfile, Toast, FeedToken
+from bookmarks.models import (
+    Bookmark,
+    BookmarkAsset,
+    BookmarkBundle,
+    Tag,
+    UserProfile,
+    Toast,
+    FeedToken,
+)
 from bookmarks.services.bookmarks import archive_bookmark, unarchive_bookmark
 
 
@@ -75,6 +84,7 @@ class LinkdingAdminSite(AdminSite):
 
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)
+        context_path = os.getenv("LD_CONTEXT_PATH", "")
         app_list += [
             {
                 "name": "Huey",
@@ -83,7 +93,7 @@ class LinkdingAdminSite(AdminSite):
                     {
                         "name": "Queued tasks",
                         "object_name": "background_tasks",
-                        "admin_url": "/admin/tasks/",
+                        "admin_url": f"/{context_path}admin/tasks/",
                         "view_only": True,
                     }
                 ],
@@ -206,7 +216,7 @@ class AdminBookmarkAsset(admin.ModelAdmin):
 
     list_display = ("custom_display_name", "date_created", "status")
     search_fields = (
-        "custom_display_name",
+        "display_name",
         "file",
     )
     list_filter = ("status",)
@@ -256,6 +266,21 @@ class AdminTag(admin.ModelAdmin):
             )
 
 
+class AdminBookmarkBundle(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "owner",
+        "order",
+        "search",
+        "any_tags",
+        "all_tags",
+        "excluded_tags",
+        "date_created",
+    )
+    search_fields = ["name", "search", "any_tags", "all_tags", "excluded_tags"]
+    list_filter = ("owner__username",)
+
+
 class AdminUserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
@@ -289,6 +314,7 @@ linkding_admin_site = LinkdingAdminSite()
 linkding_admin_site.register(Bookmark, AdminBookmark)
 linkding_admin_site.register(BookmarkAsset, AdminBookmarkAsset)
 linkding_admin_site.register(Tag, AdminTag)
+linkding_admin_site.register(BookmarkBundle, AdminBookmarkBundle)
 linkding_admin_site.register(User, AdminCustomUser)
 linkding_admin_site.register(TokenProxy, TokenAdmin)
 linkding_admin_site.register(Toast, AdminToast)

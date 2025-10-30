@@ -114,9 +114,8 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             f"""
-            <input type="text" name="url" value="{bookmark.url}" placeholder=" "
-                    autofocus class="form-input" required id="id_url">   
-        """,
+            <input type="text" name="url" aria-invalid="false" autofocus class="form-input" required id="id_url" value="{bookmark.url}">
+            """,
             html,
         )
 
@@ -124,7 +123,7 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
         self.assertInHTML(
             f"""
             <input type="text" name="tag_string" value="{tag_string}" 
-                    autocomplete="off" autocapitalize="off" class="form-input" id="id_tag_string">
+                    autocomplete="off" autocapitalize="off" class="form-input" id="id_tag_string" aria-describedby="id_tag_string_help">
         """,
             html,
         )
@@ -148,7 +147,7 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             f"""
-            <textarea name="notes" cols="40" rows="8" class="form-input" id="id_notes">
+            <textarea name="notes" cols="40" rows="8" class="form-input" id="id_notes" aria-describedby="id_notes_help">
                 {bookmark.notes}
             </textarea>
         """,
@@ -188,6 +187,25 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
         )
         edited_bookmark.refresh_from_db()
         self.assertNotEqual(edited_bookmark.url, existing_bookmark.url)
+
+    def test_should_prevent_duplicate_normalized_urls(self):
+        self.setup_bookmark(url="https://EXAMPLE.COM/path/?z=1&a=2")
+
+        edited_bookmark = self.setup_bookmark(url="http://different.com")
+
+        form_data = self.create_form_data({"url": "https://example.com/path?a=2&z=1"})
+        response = self.client.post(
+            reverse("linkding:bookmarks.edit", args=[edited_bookmark.id]), form_data
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertInHTML(
+            "<li>A bookmark with this URL already exists.</li>",
+            response.content.decode(),
+        )
+
+        edited_bookmark.refresh_from_db()
+        self.assertEqual(edited_bookmark.url, "http://different.com")
 
     def test_should_redirect_to_return_url(self):
         bookmark = self.setup_bookmark()
@@ -259,12 +277,12 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             """
-            <label for="id_shared" class="form-checkbox">
-              <input type="checkbox" name="shared" id="id_shared">
-              <i class="form-icon"></i>
-              <span>Share</span>
-            </label>            
-        """,
+            <div class="form-checkbox">
+                <input type="checkbox" name="shared" aria-describedby="id_shared_help" id="id_shared">
+                <i class="form-icon"></i>
+                <label for="id_shared">Share</label>
+            </div>
+            """,
             html,
             count=0,
         )
@@ -278,12 +296,12 @@ class BookmarkEditViewTestCase(TestCase, BookmarkFactoryMixin):
 
         self.assertInHTML(
             """
-            <label for="id_shared" class="form-checkbox">
-              <input type="checkbox" name="shared" id="id_shared">
-              <i class="form-icon"></i>
-              <span>Share</span>
-            </label>            
-        """,
+            <div class="form-checkbox">
+                <input type="checkbox" name="shared" aria-describedby="id_shared_help" id="id_shared">
+                <i class="form-icon"></i>
+                <label for="id_shared">Share</label>
+            </div>
+            """,
             html,
             count=1,
         )
