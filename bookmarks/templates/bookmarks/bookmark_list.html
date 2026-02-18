@@ -48,7 +48,8 @@
                 {% if bookmark_item.description %}<span>{{ bookmark_item.description }}</span>{% endif %}
               </div>
             {% else %}
-              {% if bookmark_item.description %}<div class="description separate">{{ bookmark_item.description }}</div>{% endif %}
+              <!-- jm: allow HTML in bookmarks -->
+              {% if bookmark_item.description %}<div class="description separate">{% autoescape off %}{{ bookmark_item.description|linebreaks }}{% endautoescape %}</div>{% endif %}
               {% if bookmark_item.tags %}
                 <div class="tags">
                   {% for tag in bookmark_item.tags %}<a href="?{{ tag.query_string }}">#{{ tag.name }}</a>{% endfor %}
