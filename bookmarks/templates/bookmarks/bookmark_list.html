@@ -41,7 +41,7 @@
               <div class="description inline truncate">
                 {% if bookmark_item.tags %}
                   <span class="tags">
-                    {% for tag in bookmark_item.tags %}<a href="?{{ tag.query_string }}">#{{ tag.name }}</a>{% endfor %}
+                    {% for tag in bookmark_item.tags %}<a href="?{{ tag.query_string }}">{{ tag.name }}</a>{% endfor %}
                   </span>
                 {% endif %}
                 {% if bookmark_item.tags and bookmark_item.description %}|{% endif %}
@@ -52,7 +52,7 @@
               {% if bookmark_item.description %}<div class="description separate">{% autoescape off %}{{ bookmark_item.description|linebreaks }}{% endautoescape %}</div>{% endif %}
               {% if bookmark_item.tags %}
                 <div class="tags">
-                  {% for tag in bookmark_item.tags %}<a href="?{{ tag.query_string }}">#{{ tag.name }}</a>{% endfor %}
+                  {% for tag in bookmark_item.tags %}<a href="?{{ tag.query_string }}">{{ tag.name }}</a>{% endfor %}
                 </div>
               {% endif %}
             {% endif %}
@@ -158,6 +158,7 @@
             {% if bookmark_item.preview_image_file %}
               <img class="preview-image"
                    src="{% static bookmark_item.preview_image_file %}"
+                   alt=""
                    loading="lazy" />
             {% else %}
               <div class="preview-image placeholder">
