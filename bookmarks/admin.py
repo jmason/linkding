@@ -81,7 +81,11 @@ class LinkdingAdminSite(AdminSite):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path("tasks/", background_task_view, name="background_tasks"),
+            path(
+                "tasks/",
+                self.admin_view(background_task_view),
+                name="background_tasks",
+            ),
         ]
         return custom_urls + urls
 
@@ -278,6 +282,8 @@ class AdminBookmarkBundle(admin.ModelAdmin):
         "any_tags",
         "all_tags",
         "excluded_tags",
+        "filter_shared",
+        "filter_unread",
         "date_created",
     )
     search_fields = ["name", "search", "any_tags", "all_tags", "excluded_tags"]
