@@ -2,8 +2,10 @@
 
 version=$(cat version.txt)
 
+# docker buildx build --target linkding --platform linux/amd64 \
+
 # Base image
-docker buildx build --target linkding --platform linux/amd64 \
+docker buildx build --target linkding \
   -f docker/default.Dockerfile \
   -t jmason/linkding:latest \
   -t jmason/linkding:$version \
